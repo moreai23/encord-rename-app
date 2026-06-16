@@ -1,0 +1,6 @@
+build/
+__pycache__/
+*.pyc
+.claude/
+encord_引継ぎ書.docx
+引継ぎ書_text.txt
