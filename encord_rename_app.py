@@ -187,7 +187,12 @@ def fw_to_hw(text: str) -> str:
 def normalize_spaces(text: str) -> str:
     text = text.replace('　', ' ')                       # 全角スペース→半角スペース
     # 枠名『番組名』形式を番組名だけに短縮: 日曜劇場『GIFT』→ GIFT
-    text = re.sub(r'^[^『\s]+\s*『([^』]+)』', r'\1', text)
+    # ※【...】内のゲスト紹介等に入れ子の『』がある場合はこの短縮を行わない
+    text = re.sub(r'^[^『【\s]+\s*『([^』]+)』', r'\1', text)
+    # 残った『』はタイトル内の入れ子表記なので括弧だけ除去（内容は残す）
+    # 例: 【舘ひろし×林◆『パパとムスメの7日間』新垣結衣との演技を再現!】
+    #   → 【舘ひろし×林◆パパとムスメの7日間新垣結衣との演技を再現!】
+    text = re.sub(r'『([^』]+)』', r'\1', text)
     text = re.sub(r'([^\s])【', r'\1 【', text)          # 【 の前にスペースを確保
     text = re.sub(r'([^\s])★', r'\1 ★', text)          # ★ の前にスペースを確保
     text = re.sub(r'(話)([「])', r'\1 \2', text)        # 第XX話「→ 第XX話 「
@@ -415,8 +420,16 @@ def has_episode(text: str) -> bool:
         text, re.IGNORECASE))
 
 
+def normalize_cours_season(text: str) -> str:
+    """『番組名』第Nクール → 番組名 SN（シーズン表記に変換）
+    例: 『Dr.STONE SCIENCE FUTURE』第3クール → Dr.STONE SCIENCE FUTURE S3
+    """
+    return re.sub(r'『([^』]+)』\s*第(\d+)クール', r'\1 S\2', text)
+
+
 def process_title(title: str, bs_regex: re.Pattern) -> str:
     title = fw_to_hw(title)
+    title = normalize_cours_season(title)
     title = bs_regex.sub('', title).strip()
     title = normalize_episode(title)
     title = normalize_spaces(title)
@@ -589,8 +602,7 @@ def parse_renamed_file(filename: str) -> dict:
 
 
 def build_archive_name(info: dict) -> str:
-    """<prefix> 【カテゴリ】 番組名 (日付) タイトル [codec].<ext> を生成"""
-    prefix = info.get('prefix', '').strip()
+    """【カテゴリ】 番組名 (日付) タイトル [codec].<ext> を生成（プレフィックスは常に除去）"""
     parts = [info['category']]
     if info['prog_name'].strip():
         parts.append(info['prog_name'].strip())
@@ -600,8 +612,7 @@ def build_archive_name(info: dict) -> str:
         parts.append(info['ep_title'].strip())
     if info['codec']:
         parts.append(info['codec'])
-    body = ' '.join(parts) + info.get('ext', '.mp4')
-    return f"{prefix} {body}" if prefix else body
+    return ' '.join(parts) + info.get('ext', '.mp4')
 
 
 # ────────────────────────────────────────────────────────────
