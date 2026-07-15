@@ -33,6 +33,9 @@ SUPPORTED_EXTS = {'.mp4', '.avi', '.mkv'}   # リネーム対象の拡張子
 
 MOVIE_TAG_RE = re.compile(r'\s*[\[［]\s*映\s*[\]］]\s*')  # [映] タグ検出
 LIVE_TAG_RE  = re.compile(r'\bLIVE\b|ライブ|コンサート|CONCERT', re.IGNORECASE)  # LIVEキーワード検出
+# 曜ドラマ・曜劇場等の枠名検出（【ドラマ】カテゴリの自動判定用）
+DRAMA_FRAME_RE = re.compile(
+    r'^(?:[月火水木金土日]曜(?:ドラマ|劇場)|プレミアムドラマ)[「『]')
 
 CATEGORIES = ['【アニメ】', '【ドラマ】', '【TV】', '【映画】', '[LIVE]', '[TV]', '[MV]']
 
@@ -451,8 +454,8 @@ def analyze_file(filename: str, bs_regex: re.Pattern,
     base = filename[: -len(ext)]   # 拡張子を除いたベース名
     base = re.sub(r'(_dec|_fixed)+$', '', base)  # 修正ツールサフィックスを除去
 
-    def _finalize(title, ep, date, pattern):
-        """[映] タグ / LIVEキーワード検出 → カテゴリ自動判定。"""
+    def _finalize(title, ep, date, pattern, is_drama_frame=False):
+        """[映] タグ / LIVEキーワード / 曜ドラマ枠 検出 → カテゴリ自動判定。"""
         if MOVIE_TAG_RE.search(title):
             title = normalize_spaces(MOVIE_TAG_RE.sub(' ', title))
             return {'skip': False, 'pattern': pattern, 'ext': ext,
@@ -462,6 +465,10 @@ def analyze_file(filename: str, bs_regex: re.Pattern,
             return {'skip': False, 'pattern': pattern, 'ext': ext,
                     'has_ep': ep, 'title': title, 'date': date,
                     'category': '[LIVE]'}
+        if is_drama_frame:
+            return {'skip': False, 'pattern': pattern, 'ext': ext,
+                    'has_ep': ep, 'title': title, 'date': date,
+                    'category': '【ドラマ】'}
         return {'skip': False, 'pattern': pattern, 'ext': ext,
                 'has_ep': ep, 'title': title, 'date': date,
                 'category': cat_episode if ep else cat_normal}
@@ -470,17 +477,19 @@ def analyze_file(filename: str, bs_regex: re.Pattern,
     if m1:
         ds, raw = m1.group(1), m1.group(2)
         date  = f"({ds[:4]}.{ds[4:6]}.{ds[6:8]})"
+        is_drama_frame = bool(DRAMA_FRAME_RE.match(raw))
         title = process_title(raw, bs_regex)
         ep    = has_episode(title)
-        return _finalize(title, ep, date, 1)
+        return _finalize(title, ep, date, 1, is_drama_frame)
 
     m2 = re.match(r'^(\(\d{4}\.\d{2}\.\d{2}\))\s*(.+)$', base)
     if m2:
         date, raw = m2.group(1), m2.group(2).strip()
+        is_drama_frame = bool(DRAMA_FRAME_RE.match(raw))
         title = process_title(raw, bs_regex)
         title = re.sub(r'\s*\[1024x576 H264aac\]\s*$', '', title).strip()
         ep    = has_episode(title)
-        return _finalize(title, ep, date, 2)
+        return _finalize(title, ep, date, 2, is_drama_frame)
 
     return {'skip': True, 'reason': 'パターン不一致'}
 
