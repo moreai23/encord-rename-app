@@ -477,7 +477,7 @@ def analyze_file(filename: str, bs_regex: re.Pattern,
     if m1:
         ds, raw = m1.group(1), m1.group(2)
         date  = f"({ds[:4]}.{ds[4:6]}.{ds[6:8]})"
-        is_drama_frame = bool(DRAMA_FRAME_RE.match(raw))
+        is_drama_frame = bool(DRAMA_FRAME_RE.match(bs_regex.sub('', raw).strip()))
         title = process_title(raw, bs_regex)
         ep    = has_episode(title)
         return _finalize(title, ep, date, 1, is_drama_frame)
@@ -485,7 +485,7 @@ def analyze_file(filename: str, bs_regex: re.Pattern,
     m2 = re.match(r'^(\(\d{4}\.\d{2}\.\d{2}\))\s*(.+)$', base)
     if m2:
         date, raw = m2.group(1), m2.group(2).strip()
-        is_drama_frame = bool(DRAMA_FRAME_RE.match(raw))
+        is_drama_frame = bool(DRAMA_FRAME_RE.match(bs_regex.sub('', raw).strip()))
         title = process_title(raw, bs_regex)
         title = re.sub(r'\s*\[1024x576 H264aac\]\s*$', '', title).strip()
         ep    = has_episode(title)
